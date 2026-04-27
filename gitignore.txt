@@ -1,0 +1,145 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import json
+
+class BookTracker:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Book Tracker")
+        self.root.geometry("700x500")
+
+        # Поля ввода
+        tk.Label(root, text="Название книги:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        self.title_entry = tk.Entry(root, width=30)
+        self.title_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        tk.Label(root, text="Автор:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        self.author_entry = tk.Entry(root, width=30)
+        self.author_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        tk.Label(root, text="Жанр:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
+        self.genre_entry = tk.Entry(root, width=30)
+        self.genre_entry.grid(row=2, column=1, padx=5, pady=5)
+
+        tk.Label(root, text="Количество страниц:").grid(row=3, column=0, sticky="w", padx=5, pady=5)
+        self.pages_entry = tk.Entry(root, width=30)
+        self.pages_entry.grid(row=3, column=1, padx=5, pady=5)
+
+        # Кнопка добавления
+        tk.Button(root, text="Добавить книгу", command=self.add_book).grid(
+            row=4, column=0, columnspan=2, pady=10
+        )
+
+        # Таблица для отображения книг
+        columns = ("Title", "Author", "Genre", "Pages")
+        self.tree = ttk.Treeview(root, columns=columns, show="headings", height=10)
+        for col in columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=150)
+        self.tree.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+
+        # Фильтры
+        tk.Label(root, text="Фильтр по жанру:").grid(row=6, column=0, sticky="w", padx=5, pady=5)
+        self.genre_filter = tk.Entry(root, width=30)
+        self.genre_filter.grid(row=6, column=1, padx=5, pady=5)
+
+        tk.Label(root, text="Фильтр по страницам (>):").grid(row=7, column=0, sticky="w", padx=5, pady=5)
+        self.pages_filter = tk.Entry(root, width=30)
+        self.pages_filter.grid(row=7, column=1, padx=5, pady=5)
+
+        tk.Button(root, text="Применить фильтры", command=self.apply_filters).grid(
+            row=8, column=0, pady=10
+        )
+        tk.Button(root, text="Сбросить фильтры", command=self.reset_filters).grid(
+            row=8, column=1, pady=10, sticky="w"
+        )
+
+        # Кнопки сохранения/загрузки
+        tk.Button(root, text="Сохранить в JSON", command=self.save_to_json).grid(
+            row=9, column=0, padx=5, pady=5
+        )
+        tk.Button(root, text="Загрузить из JSON", command=self.load_from_json).grid(
+            row=9, column=1, padx=5, pady=5, sticky="w"
+        )
+
+        self.books = []
+
+    def add_book(self):
+        title = self.title_entry.get().strip()
+        author = self.author_entry.get().strip()
+        genre = self.genre_entry.get().strip()
+        pages_str = self.pages_entry.get().strip()
+
+        # Проверка на пустые поля
+        if not title or not author or not genre:
+            messagebox.showerror("Ошибка", "Все поля должны быть заполнены!")
+            return
+
+        # Проверка количества страниц
+        try:
+            pages = int(pages_str)
+            if pages <= 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Ошибка", "Количество страниц должно быть положительным числом!")
+            return
+
+        book = {"title": title, "author": author, "genre": genre, "pages": pages}
+        self.books.append(book)
+        self.update_table()
+        self.clear_inputs()
+
+    def update_table(self, books=None):
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        target_books = books if books is not None else self.books
+        for book in target_books:
+            self.tree.insert("", "end", values=(
+                book["title"], book["author"], book["genre"], book["pages"]
+            ))
+
+    def clear_inputs(self):
+        self.title_entry.delete(0, tk.END)
+        self.author_entry.delete(0, tk.END)
+        self.genre_entry.delete(0, tk.END)
+        self.pages_entry.delete(0, tk.END)
+
+    def apply_filters(self):
+        filtered = self.books
+        genre_filter = self.genre_filter.get().strip().lower()
+        if genre_filter:
+            filtered = [b for b in filtered if genre_filter in b["genre"].lower()]
+
+        pages_filter_str = self.pages_filter.get().strip()
+        if pages_filter_str:
+            try:
+                pages_filter = int(pages_filter_str)
+                filtered = [b for b in filtered if b["pages"] > pages_filter
+            except ValueError:
+                messagebox.showerror("Ошибка", "Фильтр по страницам должен быть числом!")
+                return
+        self.update_table(filtered)
+
+    def reset_filters(self):
+        self.genre_filter.delete(0, tk.END)
+        self.pages_filter.delete(0, tk.END)
+        self.update_table()
+
+    def save_to_json(self):
+        with open("books_data.json", "w", encoding="utf-8") as f:
+            json.dump(self.books, f, ensure_ascii=False, indent=4)
+        messagebox.showinfo("Успех", "Данные сохранены в books_data.json")
+
+    def load_from_json(self):
+        try:
+            with open("books_data.json", "r", encoding="utf-8") as f:
+                self.books = json.load(f)
+            self.update_table()
+            messagebox.showinfo("Успех", "Данные загружены из books_data.json")
+        except FileNotFoundError:
+            messagebox.showerror("Ошибка", "Файл books_data.json не найден")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = BookTracker(root)
+    root.mainloop()
